@@ -453,8 +453,11 @@ function addGroundAnchors(pool, stage, countPerSegment = 3) {
   });
 }
 
-function addPlatformAnchors(pool, stage) {
+function addPlatformAnchors(pool, stage, filter = () => true) {
   stage.platforms.forEach((platform) => {
+    if (!filter(platform)) {
+      return;
+    }
     const count = clamp(Math.floor(platform.w / 60), 1, 3);
     for (let index = 0; index < count; index += 1) {
       const t = count === 1 ? 0.5 : index / (count - 1);
@@ -645,13 +648,27 @@ function buildNormalStage(index) {
     }
   };
 
-  const anchorPool = [];
-  addGroundAnchors(anchorPool, stage, 3);
-  addPlatformAnchors(anchorPool, stage);
-  shuffleInPlace(anchorPool, rng);
+  const requiredAnchorPool = [];
+  const bonusAnchorPool = [];
+  addGroundAnchors(requiredAnchorPool, stage, 3);
+
+  // Required comet parts stay on easier routes or wider ledges.
+  addPlatformAnchors(
+    requiredAnchorPool,
+    stage,
+    (platform) => platform.y >= baseY - 170 || platform.w >= 136
+  );
+  addPlatformAnchors(
+    bonusAnchorPool,
+    stage,
+    (platform) => !(platform.y >= baseY - 170 || platform.w >= 136)
+  );
+
+  shuffleInPlace(requiredAnchorPool, rng);
+  shuffleInPlace(bonusAnchorPool, rng);
 
   for (let indexPart = 0; indexPart < stage.partsRequired; indexPart += 1) {
-    const anchor = anchorPool.shift();
+    const anchor = requiredAnchorPool.shift() || bonusAnchorPool.shift();
     if (anchor) {
       stage.collectibles.push(makeCollectible("part", anchor.x, anchor.y));
     }
@@ -659,14 +676,15 @@ function buildNormalStage(index) {
 
   const powerCount = 4 + Math.floor(stageInWorld / 4) + (secondHalf ? 1 : 0);
   for (let powerIndex = 0; powerIndex < powerCount; powerIndex += 1) {
-    const anchor = anchorPool.shift();
+    const anchor = bonusAnchorPool.shift() || requiredAnchorPool.shift();
     if (anchor) {
       stage.collectibles.push(makeCollectible("power", anchor.x, anchor.y - 8));
     }
   }
 
-  if (anchorPool[0]) {
-    stage.collectibles.push(makeCollectible("heart", anchorPool[0].x, anchorPool[0].y - 10));
+  const heartAnchor = bonusAnchorPool[0] || requiredAnchorPool[0];
+  if (heartAnchor) {
+    stage.collectibles.push(makeCollectible("heart", heartAnchor.x, heartAnchor.y - 10));
   }
 
   const enemySurfaces = [
