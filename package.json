@@ -1,0 +1,17 @@
+{
+  "name": "pokemon-comet-quest",
+  "version": "1.0.0",
+  "description": "Pokemon Comet Quest desktop wrapper",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [
+    "pokemon",
+    "platformer",
+    "electron",
+    "game"
+  ],
+  "author": "Ana Paulino-Afonso",
+  "license": "UNLICENSED"
+}
