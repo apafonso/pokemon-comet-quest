@@ -24,6 +24,10 @@ const STAGE_COUNT = 100;
 const STAGES_PER_WORLD = 20;
 const BOSS_INTERVAL = 10;
 const BASE_GRAVITY = 0.58;
+const PICKUP_SIZE = 20;
+const MAX_PLAYER_WIDTH = 42;
+const REQUIRED_PART_EDGE_PADDING = 34;
+const REQUIRED_PART_MIN_SURFACE_WIDTH = MAX_PLAYER_WIDTH + REQUIRED_PART_EDGE_PADDING * 2 + PICKUP_SIZE;
 
 const NORMAL_STAGE_NAMES = [
   "Scout Path",
@@ -432,7 +436,7 @@ function createPlayer(character, spawn) {
 }
 
 function makeCollectible(kind, x, y) {
-  const size = kind === "heart" ? 20 : kind === "core" ? 24 : 20;
+  const size = kind === "heart" ? 20 : kind === "core" ? 24 : PICKUP_SIZE;
   return {
     kind,
     x,
@@ -443,31 +447,49 @@ function makeCollectible(kind, x, y) {
   };
 }
 
-function addGroundAnchors(pool, stage, countPerSegment = 3) {
+function addGroundAnchors(pool, stage, options = {}) {
+  const {
+    countPerSegment = 3,
+    edgePadding = 60,
+    minWidth = 160
+  } = options;
+
   stage.ground.forEach((segment) => {
-    if (segment.w < 160) {
+    if (segment.w < Math.max(minWidth, edgePadding * 2 + PICKUP_SIZE)) {
       return;
     }
+    const usableWidth = Math.max(0, segment.w - edgePadding * 2 - PICKUP_SIZE);
     for (let index = 0; index < countPerSegment; index += 1) {
       const t = countPerSegment === 1 ? 0.5 : index / (countPerSegment - 1);
       pool.push({
-        x: segment.x + 60 + t * Math.max(10, segment.w - 120),
+        x: segment.x + edgePadding + t * usableWidth,
         y: stage.baseY - 36
       });
     }
   });
 }
 
-function addPlatformAnchors(pool, stage, filter = () => true) {
+function addPlatformAnchors(pool, stage, options = {}) {
+  const {
+    filter = () => true,
+    edgePadding = 20,
+    minWidth = 0,
+    maxAnchors = 3
+  } = options;
+
   stage.platforms.forEach((platform) => {
     if (!filter(platform)) {
       return;
     }
-    const count = clamp(Math.floor(platform.w / 60), 1, 3);
+    if (platform.w < Math.max(minWidth, edgePadding * 2 + PICKUP_SIZE)) {
+      return;
+    }
+    const usableWidth = Math.max(0, platform.w - edgePadding * 2 - PICKUP_SIZE);
+    const count = clamp(Math.floor(platform.w / 80), 1, maxAnchors);
     for (let index = 0; index < count; index += 1) {
       const t = count === 1 ? 0.5 : index / (count - 1);
       pool.push({
-        x: platform.x + 20 + t * Math.max(10, platform.w - 40),
+        x: platform.x + edgePadding + t * usableWidth,
         y: platform.y - 28
       });
     }
@@ -655,18 +677,32 @@ function buildNormalStage(index) {
 
   const requiredAnchorPool = [];
   const bonusAnchorPool = [];
-  addGroundAnchors(requiredAnchorPool, stage, 3);
+  addGroundAnchors(requiredAnchorPool, stage, {
+    countPerSegment: 3,
+    edgePadding: 70,
+    minWidth: REQUIRED_PART_MIN_SURFACE_WIDTH
+  });
 
   // Required comet parts stay on easier routes or wider ledges.
   addPlatformAnchors(
     requiredAnchorPool,
     stage,
-    (platform) => platform.y >= baseY - 170 || platform.w >= 136
+    {
+      filter: (platform) => platform.y >= baseY - 150 && platform.w >= REQUIRED_PART_MIN_SURFACE_WIDTH,
+      edgePadding: REQUIRED_PART_EDGE_PADDING,
+      minWidth: REQUIRED_PART_MIN_SURFACE_WIDTH,
+      maxAnchors: 2
+    }
   );
   addPlatformAnchors(
     bonusAnchorPool,
     stage,
-    (platform) => !(platform.y >= baseY - 170 || platform.w >= 136)
+    {
+      filter: (platform) => !(platform.y >= baseY - 150 && platform.w >= REQUIRED_PART_MIN_SURFACE_WIDTH),
+      edgePadding: 20,
+      minWidth: 88,
+      maxAnchors: 3
+    }
   );
 
   shuffleInPlace(requiredAnchorPool, rng);
