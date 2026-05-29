@@ -398,6 +398,11 @@ function resetCampaignState() {
   game.highestUnlocked = 0;
 }
 
+function getStartingPower() {
+  // Start each stage with a small reserve so pickups still matter.
+  return Math.min(game.campaign.powerCap, 2 + Math.floor(game.campaign.cores / 2));
+}
+
 function createPlayer(character, spawn) {
   return {
     x: spawn.x,
@@ -418,7 +423,7 @@ function createPlayer(character, spawn) {
     vineLiftReady: true,
     hearts: game.campaign.maxHearts,
     maxHearts: game.campaign.maxHearts,
-    power: game.campaign.powerCap,
+    power: getStartingPower(),
     powerMax: game.campaign.powerCap,
     partsCollected: 0,
     powerDropsCollected: 0,
