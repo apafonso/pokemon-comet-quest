@@ -496,6 +496,25 @@ function addPlatformAnchors(pool, stage, options = {}) {
   });
 }
 
+function horizontalOverlap(startA, endA, startB, endB) {
+  return Math.max(0, Math.min(endA, endB) - Math.max(startA, startB));
+}
+
+function hasSafeSupportBelow(platform, stage) {
+  const safeLeft = platform.x + REQUIRED_PART_EDGE_PADDING;
+  const safeRight = platform.x + platform.w - REQUIRED_PART_EDGE_PADDING;
+  const supportSurfaces = [
+    ...stage.ground,
+    ...stage.platforms.filter((other) => other !== platform && other.y > platform.y)
+  ];
+
+  return supportSurfaces.some((surface) => {
+    const overlap = horizontalOverlap(safeLeft, safeRight, surface.x, surface.x + surface.w);
+    const verticalGap = surface.y - platform.y;
+    return overlap >= MAX_PLAYER_WIDTH + 16 && verticalGap > 0 && verticalGap <= 130;
+  });
+}
+
 function shuffleInPlace(items, rng) {
   for (let index = items.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(rng() * (index + 1));
@@ -677,23 +696,36 @@ function buildNormalStage(index) {
 
   const requiredAnchorPool = [];
   const bonusAnchorPool = [];
+  const eligibleGroundSegments = stage.ground.filter(
+    (segment) => segment.w >= Math.max(REQUIRED_PART_MIN_SURFACE_WIDTH, 70 * 2 + PICKUP_SIZE)
+  );
+  const requiredGroundAnchorCount = Math.max(
+    3,
+    Math.ceil((stage.partsRequired + 2) / Math.max(1, eligibleGroundSegments.length))
+  );
+
   addGroundAnchors(requiredAnchorPool, stage, {
-    countPerSegment: 3,
+    countPerSegment: requiredGroundAnchorCount,
     edgePadding: 70,
     minWidth: REQUIRED_PART_MIN_SURFACE_WIDTH
   });
 
-  // Required comet parts stay on easier routes or wider ledges.
-  addPlatformAnchors(
-    requiredAnchorPool,
-    stage,
-    {
-      filter: (platform) => platform.y >= baseY - 150 && platform.w >= REQUIRED_PART_MIN_SURFACE_WIDTH,
-      edgePadding: REQUIRED_PART_EDGE_PADDING,
-      minWidth: REQUIRED_PART_MIN_SURFACE_WIDTH,
-      maxAnchors: 2
-    }
-  );
+  // Mandatory parts prefer the ground; wide supported platforms are only fallback.
+  if (requiredAnchorPool.length < stage.partsRequired) {
+    addPlatformAnchors(
+      requiredAnchorPool,
+      stage,
+      {
+        filter: (platform) =>
+          platform.y >= baseY - 120 &&
+          platform.w >= REQUIRED_PART_MIN_SURFACE_WIDTH &&
+          hasSafeSupportBelow(platform, stage),
+        edgePadding: REQUIRED_PART_EDGE_PADDING,
+        minWidth: REQUIRED_PART_MIN_SURFACE_WIDTH,
+        maxAnchors: 2
+      }
+    );
+  }
   addPlatformAnchors(
     bonusAnchorPool,
     stage,
